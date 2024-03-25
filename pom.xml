@@ -19,7 +19,7 @@
 		<version.mapstruct>1.5.2.Final</version.mapstruct>
 		<version.lombok>1.18.30</version.lombok>
 		<version.mapstruct-lombok>0.2.0</version.mapstruct-lombok>
-		<start-class>banobras.api.tokenizer.BanobrasApiTokenizerApplication</start-class>
+		<start-class>com.mx.banobras.api.tokenizer.BanobrasApiTokenizerApplication</start-class>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -131,7 +131,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
-					<mainClass>banobras.api.tokenizer.BanobrasApiTokenizerApplication</mainClass>
+					<mainClass>com.mx.banobras.api.tokenizer.BanobrasApiTokenizerApplication</mainClass>
 					<layout>JAR</layout>
 				</configuration>
 			</plugin>
