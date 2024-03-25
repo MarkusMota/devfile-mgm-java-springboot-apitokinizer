@@ -1,23 +1,17 @@
 schemaVersion: 2.2.0
 metadata:
-  name: java-springboot
+  name: java-springboot-mgm
   version: 1.2.1
   attributes:
     alpha.dockerimage-port: 8081
   displayName: Spring Boot®
   description: Spring Boot® using Maven
-  icon: https://raw.githubusercontent.com/devfile-samples/devfile-stack-icons/main/spring.svg
   tags:
     - Java
     - Spring
   projectType: springboot
   language: Java
   provider: Red Hat
-  supportUrl: https://github.com/devfile-samples/devfile-support#support-information
-parent:
-  id: java-springboot
-  registryUrl: 'https://registry.devfile.io'
-  version: 2.1.0
 components:
   - name: image-build
     image:

@@ -1,7 +1,7 @@
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name:mgm-java-springboot
+  name: my-java-springboot
 spec:
   replicas: 1
   selector:
@@ -13,11 +13,11 @@ spec:
         app: java-springboot-app
     spec:
       containers:
-        - name: mgm-java-springboot
+        - name: my-java-springboot
           image: java-springboot-image:latest
           ports:
             - name: http
-              containerPort: 8081
+              containerPort: 8080
               protocol: TCP
           resources:
             requests:
@@ -27,12 +27,12 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: mgm-java-springboot-svc
+  name: my-java-springboot-svc
 spec:
   ports:
-    - name: http-8081
-      port: 8081
+    - name: http-8080
+      port: 8080
       protocol: TCP
-      targetPort: 8081
+      targetPort: 8080
   selector:
     app: java-springboot-app
