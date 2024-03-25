@@ -18,7 +18,7 @@ import com.mx.banobras.api.tokenizer.infraestructure.config.dto.TokenizerRespons
 
 
 @RestController
-@RequestMapping("/banobras/tokenizer/v1/security")
+@RequestMapping("/v1")
 public class TokenizerController {
 
 	
