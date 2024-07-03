@@ -1,195 +1,222 @@
 package com.mx.banobras.api.tokenizer.dominio.model;
 
-
+/**
+ * Tokenizer.java:
+ * 
+ * Clase de dominio para la creación y validación del token. 
+ *  
+ * @author Marcos Gonzalez
+ * @version 1.0, 13/06/2024
+ * @see documento "MAR - Marco Arquitectonico de Referencia"
+ * @since JDK 17
+ */
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.Date;
 import java.util.function.Function;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import com.mx.banobras.api.tokenizer.infraestructure.config.dto.ErrorMessageDTO;
-import com.mx.banobras.api.tokenizer.infraestructure.config.dto.TokenDTO;
-import com.mx.banobras.api.tokenizer.infraestructure.config.dto.TokenizerDTO;
-import com.mx.banobras.api.tokenizer.infraestructure.config.dto.TokenizerResponseDTO;
+import com.mx.banobras.api.tokenizer.infraestructure.adapter.input.dto.ErrorMessageDTO;
+import com.mx.banobras.api.tokenizer.infraestructure.adapter.input.dto.TokenDTO;
+import com.mx.banobras.api.tokenizer.infraestructure.adapter.input.dto.TokenizerResponseDTO;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Header;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import lombok.Data;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
 
-
-@Component
 @Data
+@Component
 public class Tokenizer {
 
-	private String jwtToken ;
-	private String username;
-	private String password;
-	private String roleUser; 
-	private String apiBackend;
-	private Integer active;
+	/** Trazas de la aplicación */
+	Logger log = LogManager.getLogger(Tokenizer.class);
 	
+	/** Variable que contiene el metodo de autenticacion */
+	@Value("${app.method.auth}")
+	String methodAuth;
+
+	/** Variable que contiene la ruta del certificado privado */
+	String filePrivateKey = System.getenv().get("PATH_FILE_PRIVATEKEY");
+
+	/** Variable que contiene la ruta del certificado publico */
+	String filePublicKey = System.getenv().get("PATH_FILE_PUBLICKEY");
+
+	/** Variable que contiene el password del certificado */
+	String certPassword = System.getenv().get("PASSWORD_CERT");
+
+	/** Variable que contiene la llave secreta */
+	String superScretKey = System.getenv().get("SECRET_KEY");
 	
-	
-	
-	public static final String SUPER_SECRET_KEY = "ZnJhc2VzbGFyZ2FzcGFyYWNvbG9jYXJjb21vY2xhdmVlbnVucHJvamVjdG9kZWVtZXBsb3BhcmF";
-	static final long TOKEN_EXPIRATION_TIME = 900000; //  150000; // 15 MINUTOS
+
+	/**
+	 * Constante que contiene el tiempo de expiración del token, igual a 1 minuto
+	 */
+	static final long TOKEN_EXPIRATION_TIME = 60000;
+	/**
+	 * Constante que contiene el tiempo de expiración del tokenRefreh, , igual a 1
+	 * minuto
+	 */
+	static final long TOKEN_EXPIRATION_TIME_REFRESH = 60000;
+	/** Constante que contiene el string Bearer para agregarla al token */
 	static final String BEARER = "Bearer ";
+	/** Constante que contiene el string username para buscar el token */
+	static final String USER_NAME = "username";
 
-	public TokenizerResponseDTO validaToken(TokenizerDTO tokenizerDTO) throws Exception {
+	/** Constante que contiene el string BANOBRAS para crear el token */
+	static final String ID_BANOBRAS = "BANOBRAS";
+	
+	/** Variable que contiene el mensaje de token expidado */
+	@Value("${app.message.token.expired}")
+	static final String MSG_TOKEN_EXPIRED = "Token expirado.";
+	
+	/** Variable que el mensaje de token nulo */
+	@Value("${app.message.token.invalid}")
+	static final String MSG_TOKEN_NULO = "Token incorrecto.";
+
+	
+
+	
+	/**
+	 * Metodo para crear el Token
+	 * 
+	 * @param tokenizerDTO Objeto que contiene los datos para crear el token.
+	 * 
+	 * @return regresa el obejto TokenizerResponseDTO con los datos del Token
+	 * 
+	 */
+	public TokenizerResponseDTO getToken(TokenizerDTO tokenizerDTO) {
+		/** Variable para guardar el token */
+		String token = null;
 		
+		/** Variable para guardar el refreshToken */
+		String refreshToken = null;
+		
+		/** Variable para guardar el tipo de generación del token */
+		Key signedKey = null;
+		
+		/**
+		 * Variable para guardar el tipo de firma de algoritmo de generación del token
+		 */
+		SignatureAlgorithm signatureAlgorithm = null;
+		
+		/** Variable para los datos del respuesta de generación del token */
 		TokenizerResponseDTO tokenizerResponseDTO = null;
-		Claims claims = null;
-
-		try {
-			
-			System.out.println(" datoa entrada::: " + this.username + " ** Activo " + this.active + " - "  + tokenizerDTO.getUsername());
-			
-			if (this.active > 0) {
-
-				BCryptPasswordEncoder bCrypt = new BCryptPasswordEncoder();
-				
-				boolean isValidPassword = bCrypt.matches(tokenizerDTO.getPassword(), this.password);
-				
-				System.out.println("tokenizerDTO.getPassword(): " + " - - " + tokenizerDTO.getPassword()+ "this.password . " + this.password  );
-				
-				if(isValidPassword) {
-				
-					final String jwtUsername = extractUsername(tokenizerDTO.getJwtToken().replace("Bearer ", ""));
-		
-					if (jwtUsername.contains(this.username)) {
-		
-						System.out.println("JWTValid");
-						String jwtToken = tokenizerDTO.getJwtToken().replace("Bearer ", "");
-		
-						claims = Jwts.parserBuilder().setSigningKey(getSignedKey(SUPER_SECRET_KEY)).build()
-								.parseClaimsJws(jwtToken).getBody();
-		
-						if (claims != null && claims.get("authorities") != null) {
-							tokenizerResponseDTO = new TokenizerResponseDTO();
-							tokenizerResponseDTO.setStatusCode(200);
-							tokenizerResponseDTO.setTokenDTO(new TokenDTO(tokenizerDTO.getJwtToken(), null));
-						}
-					}else {
-						Date date = new Date();
-						ErrorMessageDTO message = new ErrorMessageDTO(403, date, "El usuario: " +  this.username + ", no coincide con el que fue creado token.");
-						tokenizerResponseDTO = new TokenizerResponseDTO();
-						tokenizerResponseDTO.setStatusCode(403);
-						tokenizerResponseDTO.setErrorMessageDTO(message);
-						
-					}
-				}else {
-					Date date = new Date();
-					ErrorMessageDTO message = new ErrorMessageDTO(403, date, "El password no coincide con el que está almacenado en base de datos.");
-					tokenizerResponseDTO = new TokenizerResponseDTO();
-					tokenizerResponseDTO.setStatusCode(403);
-					tokenizerResponseDTO.setErrorMessageDTO(message);
-				}
-			} else {
-				Date date = new Date();
-				ErrorMessageDTO message = new ErrorMessageDTO(403, date,
-						"El usuario: " + this.username + ", no está activo.");
-				tokenizerResponseDTO = new TokenizerResponseDTO();
-				tokenizerResponseDTO.setStatusCode(403);
-				tokenizerResponseDTO.setErrorMessageDTO(message);
-			}
-		} catch (ExpiredJwtException ex) {
-			ex.printStackTrace();
-			Date date = new Date();
-			ErrorMessageDTO message = new ErrorMessageDTO(403, date, "El token ya está expirado.aaaa");
-			tokenizerResponseDTO = new TokenizerResponseDTO();
-			tokenizerResponseDTO.setStatusCode(403);
-			tokenizerResponseDTO.setErrorMessageDTO(message);
-			throw new ExpiredJwtException(null, claims, "El token ya está expiradossss.", ex);
-
-		}catch (io.jsonwebtoken.MalformedJwtException ex) {
-			ex.printStackTrace();
-			Date date = new Date();
-			ErrorMessageDTO message = new ErrorMessageDTO(403, date, "El token no tiene el formato correcto.");
-			tokenizerResponseDTO = new TokenizerResponseDTO();
-			tokenizerResponseDTO.setStatusCode(403);
-			tokenizerResponseDTO.setErrorMessageDTO(message);
-			throw new MalformedJwtException("El token no tiene el formato correctosss.", ex);
-
-		}catch (Exception ex) {
-			ex.printStackTrace();
-			Date date = new Date();
-			ErrorMessageDTO message = new ErrorMessageDTO(403, date, ex.getMessage());
-			tokenizerResponseDTO = new TokenizerResponseDTO();
-			tokenizerResponseDTO.setStatusCode(403);
-			tokenizerResponseDTO.setErrorMessageDTO(message);
-			throw new MalformedJwtException("No se que errore es: ", ex);
+		log.info(new StringBuffer().append("Metodo token - ").append(methodAuth));
+		/** Valida el tipo de metodo de generación del token */
+		if (methodAuth.equalsIgnoreCase("RSA")) {
+			/** Gneración del token de tipo RSA */
+			signedKey = getRSAPrivateKey();
+			signatureAlgorithm = SignatureAlgorithm.RS256;
+		} else {
+			/** Gneración del token por llave secreta */
+			signedKey = getSignedKey(superScretKey);
+			signatureAlgorithm = SignatureAlgorithm.HS512;
 		}
+		try {
+			token = createToken(tokenizerDTO, signedKey, signatureAlgorithm, TOKEN_EXPIRATION_TIME);
+			token = BEARER + token;
+			if (tokenizerDTO.getRefreshToken() > 0) {
+				refreshToken = createToken(tokenizerDTO, signedKey, signatureAlgorithm,
+						TOKEN_EXPIRATION_TIME * tokenizerDTO.getRefreshToken());
+				refreshToken = BEARER + refreshToken;
+			}
+			tokenizerResponseDTO = new TokenizerResponseDTO();
+			tokenizerResponseDTO.setStatusCode(HttpStatus.OK.value());
+			tokenizerResponseDTO.setTokenDTO(new TokenDTO(true, token, refreshToken));
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			log.error(ex.getMessage() , ex);
+			Date date = new Date();
+			ErrorMessageDTO message = new ErrorMessageDTO(500, date, ex.getMessage());
+			tokenizerResponseDTO = new TokenizerResponseDTO();
+			tokenizerResponseDTO.setStatusCode(HttpStatus.FORBIDDEN.value());
+			tokenizerResponseDTO.setErrorMessageDTO(message);
+		}
+		
 		return tokenizerResponseDTO;
-
 	}
 
-	public TokenizerResponseDTO getToken(TokenizerDTO tokenizerDTO) {
-		String token = null;
+	/**
+	 * Metodo para validar el Token
+	 * 
+	 * @param tokenizerDTO Objeto que contiene los datos para crear el token.
+	 * 
+	 * @return regresa el obejto TokenizerResponseDTO con los datos del Token
+	 * 
+	 */
+	public TokenizerResponseDTO validaToken(TokenizerDTO tokenizerDTO) {
+
 		TokenizerResponseDTO tokenizerResponseDTO = null;
+		
 		try {
-			if (this.active > 0 ) {
-				
-				BCryptPasswordEncoder bCrypt = new BCryptPasswordEncoder();
-				
-				boolean isValidPassword = bCrypt.matches(tokenizerDTO.getPassword(), this.password);		
-				
-				if(isValidPassword) {
-					token = Jwts.builder()
-							.setId("banobras")
-							.setSubject(this.username)
-							.claim("username", this.username)
-							.claim("password", this.password)
-							.claim("role_user", this.roleUser)
-							.claim("authorities", "[Optional[ROLE_" + this.roleUser +"]]")
-							.setIssuedAt(new Date(System.currentTimeMillis()))
-							.setExpiration(new Date(System.currentTimeMillis() + TOKEN_EXPIRATION_TIME))
-							.signWith(getSignedKey(SUPER_SECRET_KEY), SignatureAlgorithm.HS512).compact();
-					tokenizerResponseDTO = new TokenizerResponseDTO();
-					tokenizerResponseDTO.setStatusCode(200);
-					tokenizerResponseDTO.setTokenDTO(new TokenDTO(BEARER+token, null));
-					
-				}else {
-					Date date = new Date();
-					ErrorMessageDTO message = new ErrorMessageDTO(403, date, "El password no coincide con el que que esta almacenado en base de datos.");
-					tokenizerResponseDTO = new TokenizerResponseDTO();
-					tokenizerResponseDTO.setStatusCode(403);
-					tokenizerResponseDTO.setErrorMessageDTO(message);
-				}
-			}else {
+			
+			tokenizerResponseDTO = validaUsuarioToken(tokenizerDTO );
+			if (tokenizerResponseDTO== null){
+				log.info("tokenizerResponseDTO == null");
 				Date date = new Date();
-				ErrorMessageDTO message = new ErrorMessageDTO(403, date, "El usuario: " +  this.username + ", no está activo.");
+				ErrorMessageDTO message = new ErrorMessageDTO(HttpStatus.FORBIDDEN.value(), date,
+						MSG_TOKEN_NULO);
 				tokenizerResponseDTO = new TokenizerResponseDTO();
-				tokenizerResponseDTO.setStatusCode(403);
+				tokenizerResponseDTO.setStatusCode(HttpStatus.FORBIDDEN.value());
 				tokenizerResponseDTO.setErrorMessageDTO(message);
-				
 			}
-		}catch(Exception ex) {
+
+		} catch (ExpiredJwtException ex) {
 			ex.printStackTrace();
-			Date date = new Date();
-			ErrorMessageDTO message = new ErrorMessageDTO(403, date, ex.getMessage());
+			log.error("ExpiredJwtException", ex);
+			ErrorMessageDTO message = new ErrorMessageDTO(HttpStatus.UNAUTHORIZED.value(), new Date(), MSG_TOKEN_EXPIRED);
 			tokenizerResponseDTO = new TokenizerResponseDTO();
-			tokenizerResponseDTO.setStatusCode(403);
+			tokenizerResponseDTO.setStatusCode(HttpStatus.UNAUTHORIZED.value());
+			tokenizerResponseDTO.setErrorMessageDTO(message);
+		} catch (MalformedJwtException ex) {
+			ex.printStackTrace();
+			log.error("MalformedJwtException", ex);
+			ErrorMessageDTO message = new ErrorMessageDTO(HttpStatus.FORBIDDEN.value(), new Date(), MSG_TOKEN_NULO);
+			tokenizerResponseDTO = new TokenizerResponseDTO();
+			tokenizerResponseDTO.setStatusCode(HttpStatus.FORBIDDEN.value());
+			tokenizerResponseDTO.setErrorMessageDTO(message);
+
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			log.error("Exception", ex);
+			ErrorMessageDTO message = new ErrorMessageDTO(HttpStatus.FORBIDDEN.value(), new Date(), MSG_TOKEN_NULO);
+			tokenizerResponseDTO = new TokenizerResponseDTO();
+			tokenizerResponseDTO.setStatusCode(HttpStatus.FORBIDDEN.value());
 			tokenizerResponseDTO.setErrorMessageDTO(message);
 		}
 		
 		return tokenizerResponseDTO;
+
 	}
 
 	public static Key getSignedKey(String secretKey) {
 		byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
 		return Keys.hmacShaKeyFor(keyBytes);
 	}
-	
+
 	public String extractUsername(String token) {
+		return extractClaim(token, Claims::getSubject);
+	}
+
+	public String extractTransaction(String token) {
 		return extractClaim(token, Claims::getSubject);
 	}
 
@@ -199,8 +226,112 @@ public class Tokenizer {
 	}
 
 	private Claims extractAllClaims(String token) {
-		return Jwts.parserBuilder().setSigningKey(getSignedKey(SUPER_SECRET_KEY)).build().parseClaimsJws(token)
-				.getBody();
+
+		if (methodAuth.equalsIgnoreCase("RSA")) {
+			return Jwts.parserBuilder().setSigningKey(getRSAPublicKey()).build().parseClaimsJws(token).getBody();
+		} else {
+			return Jwts.parserBuilder().setSigningKey(getSignedKey(superScretKey)).build().parseClaimsJws(token)
+					.getBody();
+		}
+
 	}
 
+	private static String createToken(TokenizerDTO tokenizerDTO, Key signedKey, SignatureAlgorithm signatureAlgorithm,
+			long expirationTime) {
+		String token = null;
+		token = Jwts.builder().setHeaderParam(Header.TYPE, Header.JWT_TYPE)
+				.setHeaderParam(JwsHeader.ALGORITHM, signatureAlgorithm.toString())
+				.setId(ID_BANOBRAS)
+				.setSubject(tokenizerDTO.getUserName())
+				.setAudience(tokenizerDTO.getTransactionalId())
+				.setIssuer(tokenizerDTO.getUserName())
+				.claim(USER_NAME, tokenizerDTO.getUserName())
+				.claim("consumerId", tokenizerDTO.getConsumerId())
+				.claim("functionalId", tokenizerDTO.getFunctionalId())
+				.claim("transaccionId", tokenizerDTO.getTransactionalId())
+				.setIssuedAt(new Date(System.currentTimeMillis()))
+				.setExpiration(new Date(System.currentTimeMillis() + expirationTime))
+				.signWith(signedKey, signatureAlgorithm).compact();
+
+		return token;
+	}
+
+	private Key getRSAPrivateKey() {
+		Key key = null;
+		
+		try(InputStream targetStream = new FileInputStream(new File(filePrivateKey))) {
+			KeyStore keystore;
+			keystore = KeyStore.getInstance("PKCS12");
+			keystore.load(targetStream, certPassword.toCharArray());
+			key = keystore.getKey("5", certPassword.toCharArray());
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(), e);
+		}
+		return key;
+	}
+
+	private Jws<Claims> verifyJWTRSA(String jwtToken, TokenizerDTO tokenizerDTO) {
+		return Jwts.parserBuilder()
+				.requireAudience(tokenizerDTO.getTransactionalId())
+				.requireIssuer(tokenizerDTO.getUserName())
+				.require("transaccionId", tokenizerDTO.getTransactionalId())
+				.setSigningKey(getRSAPublicKey()).build().parseClaimsJws(jwtToken);
+	}
+
+	private Key getRSAPublicKey() {
+		Key key = null;
+		
+		try(InputStream targetStream = new FileInputStream(new File(filePublicKey))) {
+			CertificateFactory fact = CertificateFactory.getInstance("X.509");
+			X509Certificate cer = (X509Certificate) fact.generateCertificate(targetStream);
+			key = cer.getPublicKey();
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(), e);
+		}
+		return key;
+	}
+
+	
+	private TokenizerResponseDTO validaUsuarioToken(TokenizerDTO tokenizerDTO) {
+		log.info("Busca usuario en el token.");
+		String jwtUsername = extractUsername(tokenizerDTO.getJwtToken().replace(BEARER, ""));
+		
+		TokenizerResponseDTO tokenizerResponseDTO = null;
+		
+		Claims claims = null;
+		Jws<Claims> claimsJws = null;
+		log.info("Valida el usuario en el token.");
+		if (jwtUsername.contains(tokenizerDTO.getUserName())) {
+			log.info("Token y usuario correctos");
+			String jwtToken = tokenizerDTO.getJwtToken().replace(BEARER, "");
+
+			if (methodAuth.equalsIgnoreCase("RSA")) {
+				claimsJws = verifyJWTRSA(jwtToken, tokenizerDTO);
+
+				for (String key : claimsJws.getBody().keySet()) {
+					if (USER_NAME.equals(key)) {
+						tokenizerResponseDTO = new TokenizerResponseDTO();
+						tokenizerResponseDTO.setStatusCode(HttpStatus.OK.value());
+						tokenizerResponseDTO.setTokenDTO(new TokenDTO(true, null, null));
+						break;
+					}
+				}
+
+			} else {
+
+				claims = Jwts.parserBuilder().setSigningKey(getSignedKey(superScretKey)).build()
+						.parseClaimsJws(jwtToken).getBody();
+
+				if (claims != null && claims.get(USER_NAME) != null) {
+					tokenizerResponseDTO = new TokenizerResponseDTO();
+					tokenizerResponseDTO.setStatusCode(HttpStatus.OK.value());
+					tokenizerResponseDTO.setTokenDTO(new TokenDTO(true,  null, null));
+				}
+			}
+		}
+		return tokenizerResponseDTO;
+	}
 }

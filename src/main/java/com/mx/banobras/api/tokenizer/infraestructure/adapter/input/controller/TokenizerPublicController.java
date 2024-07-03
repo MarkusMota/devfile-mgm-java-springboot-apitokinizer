@@ -16,6 +16,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import java.util.Date;
+
+
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -26,8 +29,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-
 import com.mx.banobras.api.tokenizer.application.inputport.ITokenizerInputPort;
 import com.mx.banobras.api.tokenizer.common.util.CommonConstant;
 import com.mx.banobras.api.tokenizer.dominio.model.TokenizerDTO;
@@ -38,11 +39,11 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @CrossOrigin(originPatterns = { "*" })
 @RestController
-@RequestMapping("/banobras/tokenizer/v1/security")
-public class TokenizerController {
+@RequestMapping("/banobras/tokenizer/v1/public")
+public class TokenizerPublicController {
 
 	/** Trazas de la aplicación */
-	Logger log = LogManager.getLogger(TokenizerController.class);
+	Logger log = LogManager.getLogger(TokenizerPublicController.class);
 
 	/** Injection variable del objeto HttpServletRequest */
 	private HttpServletRequest httRequest;
@@ -50,12 +51,14 @@ public class TokenizerController {
 	/** Injection variable para la interfaz iTokenizerInputPort */
 	private ITokenizerInputPort iTokenizerInputPort;
 
+
+
 	/** Consturctor de las interfaces que usa el controller */
-	public TokenizerController(ITokenizerInputPort iTokenizerInputPort, HttpServletRequest httRequest) {
+	public TokenizerPublicController(ITokenizerInputPort iTokenizerInputPort, HttpServletRequest httRequest) {
 		this.iTokenizerInputPort = iTokenizerInputPort;
 		this.httRequest = httRequest;
-
 	}
+	
 
 	/**
 	 * Metodo para obtener el Token, para el consumo de los microservicios.
@@ -74,50 +77,46 @@ public class TokenizerController {
 	 * 
 	 */
 	@PostMapping("/token")
-	public ResponseEntity<TokenizerResponseDTO> getToken(
+	public ResponseEntity<TokenizerResponseDTO> getTokenPublic(
 			@RequestHeader(value = "credentials") String credentials,
 			@RequestHeader(value = "consumer-api-id") String consumerApiId,
 			@RequestHeader(value = "functional-id") String functionalId,
-			@RequestHeader(value = "transaction-id") String transactionId,
-			@RequestHeader(value = "refresh-token") Integer refreshToken) {
+			@RequestHeader(value = "transaction-id") String transactionId) {
 
 		TokenizerResponseDTO tokenizerResponseDTO = null;
 		TokenizerDTO tokenizerDTO = null;
 		ErrorMessageDTO errorMessage = null;
-		log.info("Inicia crear token");
+		
+		
 		try {
 			/** String remoteHost = request.getRemoteHost(); */
 			String remoteHost = getIpRemoteAdress();
+			
 			// Agrega parametros para que se muestren en el Log
 			ThreadContext.put("transaction-id", transactionId);
 			ThreadContext.put("ip", remoteHost);
 			
+			log.info("Inicia generar token - publico");
+			
 			/** Inicializa el obejto con los valores de header */
 			tokenizerDTO = new TokenizerDTO(credentials, null, null, null, consumerApiId, functionalId,
-					transactionId, refreshToken);
+					transactionId, 0);
 
 			log.info("Invoca la intefaz para obtiener el token");
-			tokenizerResponseDTO = iTokenizerInputPort.createToken(tokenizerDTO);
+			tokenizerResponseDTO = iTokenizerInputPort.createTokenPublic(tokenizerDTO);
 
 			// Valida el resultado en la generacio del token
 			if (tokenizerResponseDTO.getStatusCode() == HttpStatus.OK.value()) {
 				log.info("Se genera el token correctamente");
 				return new ResponseEntity<>(tokenizerResponseDTO, HttpStatus.OK);
 			} else {
-				log.info("No se genera el token");
+				log.info("No se genero el token, hay un error");
 				return new ResponseEntity<>(tokenizerResponseDTO,
 						HttpStatus.valueOf(tokenizerResponseDTO.getStatusCode()));
 			}
 		} catch (NullPointerException enull) {
 			log.error(enull.getMessage(), enull);
 			errorMessage = new ErrorMessageDTO(HttpStatus.INTERNAL_SERVER_ERROR.value(), new Date(), CommonConstant.MSG_ERROR_500.getName());
-			tokenizerResponseDTO = new TokenizerResponseDTO();
-			tokenizerResponseDTO.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
-			tokenizerResponseDTO.setErrorMessageDTO(errorMessage);
-			return new ResponseEntity<>(tokenizerResponseDTO, HttpStatus.valueOf(tokenizerResponseDTO.getStatusCode()));
-		} catch (IllegalArgumentException eil) {
-			log.error(eil.getMessage(), eil);
-			errorMessage = new ErrorMessageDTO(HttpStatus.INTERNAL_SERVER_ERROR.value(), new Date(), eil.getMessage());
 			tokenizerResponseDTO = new TokenizerResponseDTO();
 			tokenizerResponseDTO.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
 			tokenizerResponseDTO.setErrorMessageDTO(errorMessage);
@@ -132,7 +131,7 @@ public class TokenizerController {
 			return new ResponseEntity<>(tokenizerResponseDTO, HttpStatus.valueOf(tokenizerResponseDTO.getStatusCode()));
 		} finally {
 			ThreadContext.clearStack();
-			log.info("Finaliza crear token");
+			log.info("Finaliza generar token - publico");
 		}
 	}
 
@@ -151,7 +150,7 @@ public class TokenizerController {
 	 */
 
 	@PostMapping("/valid")
-	public ResponseEntity<TokenizerResponseDTO> validToken(
+	public ResponseEntity<TokenizerResponseDTO> validTokenPublic(
 			@RequestHeader(value = "credentials") String credentials,
 			@RequestHeader(value = "auth-token") String jwtToken, 
 			@RequestHeader(value = "consumer-api-id") String consumerApiId,
@@ -161,17 +160,17 @@ public class TokenizerController {
 		TokenizerResponseDTO tokenizerResponseDTO = null;
 		TokenizerDTO tokenizerDTO = null;
 		ErrorMessageDTO errorMessage = null;
-
 		try {
-
 			String remoteHost = getIpRemoteAdress();
 			ThreadContext.put("transaction-id", transactionId);
 			ThreadContext.put("ip", remoteHost);
-			log.info("Inicia :: validar token");
+			
+			log.info("Inicia validar token - publico");
 			tokenizerDTO = new TokenizerDTO(credentials, null, null, jwtToken, consumerApiId, functionalId,
 					transactionId, null);
 
-			tokenizerResponseDTO = iTokenizerInputPort.validateToken(tokenizerDTO);
+			log.info("Invoca la intefaz para validar el token");
+			tokenizerResponseDTO = iTokenizerInputPort.validateTokenPublic(tokenizerDTO);
 
 			if (tokenizerResponseDTO.getStatusCode() == 200) {
 				log.info("Se genera el token correctamente");
@@ -190,13 +189,6 @@ public class TokenizerController {
 			tokenizerResponseDTO.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
 			tokenizerResponseDTO.setErrorMessageDTO(errorMessage);
 			return new ResponseEntity<>(tokenizerResponseDTO, HttpStatus.valueOf(tokenizerResponseDTO.getStatusCode()));
-		} catch (IllegalArgumentException eil) {
-			log.error(eil.getMessage(), eil);
-			errorMessage = new ErrorMessageDTO(HttpStatus.INTERNAL_SERVER_ERROR.value(), new Date(), eil.getMessage());
-			tokenizerResponseDTO = new TokenizerResponseDTO();
-			tokenizerResponseDTO.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
-			tokenizerResponseDTO.setErrorMessageDTO(errorMessage);
-			return new ResponseEntity<>(tokenizerResponseDTO, HttpStatus.valueOf(tokenizerResponseDTO.getStatusCode()));
 		} catch (Exception e) {
 			e.printStackTrace();
 			log.error(e.getMessage(), e);
@@ -207,7 +199,7 @@ public class TokenizerController {
 			return new ResponseEntity<>(tokenizerResponseDTO, HttpStatus.valueOf(tokenizerResponseDTO.getStatusCode()));
 		} finally {
 			ThreadContext.clearStack();
-			log.info("Finaliza :: validar token");
+			log.info("Finaliza validar token - publico");
 		}
 	}
 
@@ -221,12 +213,12 @@ public class TokenizerController {
 	 */
 	private String getIpRemoteAdress() throws UnknownHostException {
 		log.info(new StringBuilder().append("Busca IP :: ").append(httRequest.getRemoteHost()));
-		log.info(new StringBuilder().append(CommonConstant.BUSCA_POR.getName()).append(CommonConstant.H_X_FORWARDED_FOR.getName()));
+		log.info(new StringBuilder().append(CommonConstant.BUSCA_POR).append(CommonConstant.H_X_FORWARDED_FOR.getName()));
 		String ipAddress = "";
 		if (buscaEnHeaderPor(CommonConstant.H_X_FORWARDED_FOR.getName())) {
 			ipAddress = httRequest.getHeader(CommonConstant.H_X_FORWARDED_FOR.getName());
 		} else {
-			if (buscaEnHeaderPor(CommonConstant.H_PROXY_CLIENT_IP.name())) {
+			if (buscaEnHeaderPor(CommonConstant.H_PROXY_CLIENT_IP.getName())) {
 				ipAddress = httRequest.getHeader(CommonConstant.H_PROXY_CLIENT_IP.getName());
 			} else {
 				if (buscaEnHeaderPor(CommonConstant.H_WL_PROXY_CLIENT_IP.getName())) {
@@ -291,7 +283,7 @@ public class TokenizerController {
 	 */
 	private String obtenValorPorRemoteAddr() throws UnknownHostException {
 		String ipAddress = httRequest.getRemoteAddr();
-		if (ipAddress.equals(CommonConstant.LOCALHOST_IPV4.getName()) || ipAddress.equals(CommonConstant.LOCALHOST_IPV6.getName())) {
+		if (CommonConstant.LOCALHOST_IPV4.getName().equals(ipAddress) || CommonConstant.LOCALHOST_IPV6.getName().equals(ipAddress)) {
 			log.info("Busca por getLocalHost()");
 			InetAddress inetAddress = InetAddress.getLocalHost();
 			ipAddress = inetAddress.getHostAddress();
@@ -302,5 +294,5 @@ public class TokenizerController {
 		return ipAddress;
 	}
 
-
+	
 }
