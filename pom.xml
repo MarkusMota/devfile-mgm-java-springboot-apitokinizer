@@ -242,7 +242,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
-					<mainClass>com.mx.banobras.api.tokenizer.BanobrasApiTokenizerApplication</mainClass>
+					<mainClass>mx.gob.banobras.apitokenizer.ApiTokenizerApplication</mainClass>
 					<layout>JAR</layout>
 				</configuration>
 			</plugin>
