@@ -2,8 +2,8 @@
 <!DOCTYPE log4j2>
 <Configuration>
 	<Properties>
-		<Property name="LOGS_DIRECTORY">C:/Workspaces/logs/token</Property>
-		<Property name="OLDS_LOGS_DIRECTORY">C:/Workspaces/logs/token</Property>
+		<Property name="LOGS_DIRECTORY">/workspaces/logs/token</Property>
+		<Property name="OLDS_LOGS_DIRECTORY">/workspaces/logs/token</Property>
 		<Property name="TRACE_FILE">trace-apitoken</Property>
 	</Properties>
 	<Appenders>
